@@ -1,0 +1,38 @@
+import time
+from xtquant.xttrader import XtQuantTrader
+from xtquant.xttype import StockAccount
+
+# ================= 配置 =================
+# 改成自己的安装路径和资金账号
+PATH = r"C:\QMT\userdata_mini"
+ACCOUNT = "40241234"
+# ========================================
+
+# 初始化会话
+session_id = int(time.time())
+xt_trader = XtQuantTrader(PATH, session_id)
+xt_trader.start()
+
+# 连接
+connect_result = xt_trader.connect()
+
+if connect_result == 0:
+    print(" 连接成功")
+else:
+    print(f" 连接失败，错误码：{connect_result}")
+    xt_trader.stop()
+    exit()
+
+# 查询资产
+acc = StockAccount(ACCOUNT)
+asset = xt_trader.query_stock_asset(acc)
+
+if asset:
+    print("\n===== 账户资产信息 =====")
+    print(f"总资产：{asset.total_asset:.2f}")
+    print(f"可用资金：{asset.cash:.2f}")
+    print(f"持仓市值：{asset.market_value:.2f}")
+else:
+    print(" 未获取到资产信息，请确认账号已登录")
+
+xt_trader.stop()

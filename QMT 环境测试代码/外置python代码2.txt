@@ -1,0 +1,67 @@
+# coding:utf-8
+import time
+from xtquant.xttrader import XtQuantTrader
+from xtquant.xttype import StockAccount
+from xtquant import xtconstant
+
+# ================= 配置参数 =================
+# 替换为你的 QMT 客户端 userdata_mini 实际路径
+TRADE_PATH = r"C:\QMT\userdata_mini"
+
+# 替换为你的实际资金账号（在 QMT 客户端界面中查看）
+ACCOUNT_ID = "40241234"
+
+# 会话 ID，确保唯一（同一时间运行的多个策略不能重复）
+SESSION_ID = int(time.time())
+# ==========================================
+
+def main():
+    # 初始化交易接口
+    xt_trader = XtQuantTrader(TRADE_PATH, SESSION_ID)
+    xt_trader.start()
+
+    # 连接 QMT 客户端
+    connect_result = xt_trader.connect()
+    if connect_result != xtconstant.CONNECT_SUCCESS:
+        print(f"连接失败，错误码: {connect_result}")
+        xt_trader.stop()
+        return
+
+    # 创建股票账户对象
+    account = StockAccount(ACCOUNT_ID, "STOCK")
+
+    # 订阅账户（必须订阅后才能查询）
+    subscribe_result = xt_trader.subscribe(account)
+    if subscribe_result != xtconstant.SUBSCRIBE_SUCCESS:
+        print(f"订阅账户失败，错误码: {subscribe_result}")
+        xt_trader.stop()
+        return
+
+    # 查询账户资产
+    asset = xt_trader.query_stock_asset(account)
+    if asset:
+        print("\n===== 账户资产信息 =====")
+        print(f"资金账号: {account.account_id}")
+        print(f"总资产: {getattr(asset, 'total_asset', getattr(asset, 'm_dTotalAsset', 0)):.2f}")
+        print(f"可用资金: {getattr(asset, "available_cash", getattr(asset, "m_dCash", 0)):.2f}")
+        print(f"持仓市值: {getattr(asset, "market_value", getattr(asset, "m_dMarketValue", 0)):.2f}")
+    else:
+        print("未获取到资产信息，请确认账号已登录并有权限")
+
+    # 查询持仓
+    positions = xt_trader.query_stock_positions(account)
+    if positions:
+        print("\n===== 持仓明细 =====")
+        for pos in positions:
+            stock_code = pos.stock_code
+            volume = pos.volume          # 总持仓
+            can_use = pos.can_use_volume # 可用持仓
+            avg_price = getattr(pos, "avg_price", 0)  # 成本价
+            print(f"{stock_code} | 总持仓: {volume} | 可用: {can_use} | 成本价: {avg_price:.3f}")
+    else:
+        print("当前无持仓")
+
+    xt_trader.stop()
+
+if __name__ == "__main__":
+    main()

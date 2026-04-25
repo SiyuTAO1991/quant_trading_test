@@ -1,0 +1,70 @@
+import time
+import sys
+from xtquant import xtdata
+from xtquant.xttrader import XtQuantTrader, XtQuantTraderCallback
+from xtquant.xttype import StockAccount
+from xtquant import xtconstant
+
+
+class TradingCallback(XtQuantTraderCallback):
+
+    def __init__(self):
+        print("TradingCallback init")
+        super().__init__()
+
+    def on_disconnected(self):
+        print("on_disconnected")
+
+    def on_stock_order(self, order):
+        print(f"委托回调: {order.stock_code}, 类型: {order.order_type}, 数量: {order.order_volume}, 价格: {order.price}, 状态: {order.order_status}")
+
+    def on_stock_trade(self, trade):
+        print(f"成交回调: {trade.stock_code}, 方向: {trade.order_type}, 成交价格: {trade.traded_price}, 成交数量: {trade.traded_volume}")
+
+    def on_stock_asset(self, asset):
+        print(f"资产回调: 总资产={getattr(asset, 'total_asset', 0):.2f}, 可用资金={getattr(asset, 'available_cash', 0):.2f}")
+
+    def on_stock_position(self, position):
+        print(f"持仓回调: {position.stock_code}, 数量: {position.volume}, 可用: {position.can_use_volume}, 成本价: {position.avg_price:.3f}")
+
+    def on_order_error(self, order_error):
+        print(f"订单错误: {order_error.order_remark} - {order_error.error_msg}")
+
+    def on_cancel_order(self, cancel_order):
+        print(f"撤单回调: {cancel_order.stock_code}, 订单ID: {cancel_order.order_id}")
+
+
+if __name__ == '__main__':
+    print("start")
+
+    path = r'C:\光大证券金阳光QMT\userdata_mini'
+    session_id = int(time.time())
+    trading_callback = TradingCallback()
+    xt_trader = XtQuantTrader(path, session_id, callback=trading_callback)
+
+    acc = StockAccount('20837017', 'STOCK')
+    xt_trader.start()
+    connect_result = xt_trader.connect()
+
+    xt_trader.subscribe(acc)
+
+    positions = xt_trader.query_stock_positions(acc)
+    account_info = xt_trader.query_stock_asset(acc)
+    available_cash = account_info.m_dCash
+
+    print(acc.account_id, '可用资金', available_cash)
+
+    for position in positions:
+        if hasattr(position, '__dict__'):
+            print(position.__dict__)
+        else:
+            print(f"Type of position: {type(position)}")
+            print("All fields using dir() and getattr():")
+            attributes = dir(position)
+            for attr in attributes:
+                if not attr.startswith('__'):
+                    try:
+                        value = getattr(position, attr)
+                        print(f"  {attr}: {value}")
+                    except Exception as e:
+                        print(f"  {attr}: <无法获取值 - {e}>")

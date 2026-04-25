@@ -1,0 +1,42 @@
+import time
+from xtquant import xtdata
+from xtquant.xttrader import XtQuantTrader
+from xtquant.xttype import StockAccount
+from xtquant import xtconstant
+
+# ===================== 你只需要改这里 =====================
+PATH = r"D:\Program Files\光大证券金阳光QMT\userdata_mini"
+ACCOUNT_ID = "20456889"
+# =========================================================
+
+# 初始化交易对象
+xt_trader = XtQuantTrader(PATH, int(time.time()))
+xt_trader.start()
+
+# 连接 QMT
+connect_result = xt_trader.connect()
+print("连接结果:", connect_result)
+
+if connect_result == 0:
+    print("✅ 连接成功")
+    
+    # 订阅账户
+    acc = StockAccount(ACCOUNT_ID)
+    xt_trader.subscribe(acc)
+    
+    # 查询持仓
+    positions = xt_trader.query_stock_positions(acc)
+    
+    pos_total = {i.stock_code: i.volume for i in positions}
+    pos_available = {i.stock_code: i.can_use_volume for i in positions}
+    pos_avg_price = {i.stock_code: i.avg_price for i in positions}
+    
+    print("\n账户:", acc.account_id)
+    print("总持仓:", pos_total)
+    print("可用持仓:", pos_available)
+    print("成本价:", pos_avg_price)
+
+else:
+    print("❌ 连接失败，请检查路径或QMT是否开启极简模式")
+
+xt_trader.stop()

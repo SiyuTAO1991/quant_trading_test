@@ -1,0 +1,164 @@
+CREATE DATABASE IF NOT EXISTS wucai_trade
+DEFAULT CHARACTER SET utf8mb4
+DEFAULT COLLATE utf8mb4_unicode_ci;
+
+mysql -u root -p wucai_trade < "./wucai_trade_charles.sql"
+
+获取财务报告：
+https://data.eastmoney.com/notices/detail/600519/AN202510291771332923.html
+
+研究报告：
+https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=SH600519&color=b#/yjbg
+
+财经日历 gushitong.baidu.com/calendar
+
+Charles 帮我们采集这些数据 => MySQL
+
+Step1，跑通流程，可以是单支股票，比如 600519.SH
+Step2，再改成更多的股票
+
+先跑通 TEST_MODE = True => 1只股票
+再把 TEST_MODE = False => 跑全量的股票
+
+
+Q：前面的交易数据表没有板块字段，新闻表有，量化实践中是只通过新闻事件来定性识别板块异动吗？感觉过一遍llm效率不太高
+
+
+Q：新闻表里是有 股票代码的，如果根据标题去重的话，那不是有的股票里的新闻就不完整了吗？
+
+
+Q：刚安装MySQL后，在powershall输入mysql -u root –p后没提示输入密码，直接报错：ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO),没法连接，什么问题？
+加了 -p 参数就要在后面带上密码
+
+Q：开头没听到，把数据放到数据库中，最终怎么用呢，读取数据然后用模型预测？
+charles：数据员
+zoe：分析师
+
+预测：股价预测，涨跌预测
+多因子选股
+交易决策（买卖点）
+
+
+Q：akshare新闻数据源， 可以自己制定其它网站吗？ 甚至制定贴吧吗？
+akshare已经封装了很多数据源
+如果数据源不在akshare支持的网站采集中，需要自己写爬虫（playwright）
+
+当前CPI和PPI走势说明了什么？对货币政策和股市有什么影响？
+
+当前数据:
+最新CPI同比: 0.2% (2026-01-31)
+最新PPI同比: -1.4% (2026-01-31)
+近6个月CPI走势: -0.4% -> -0.3% -> 0.2% -> 0.7% -> 0.8% -> 0.2%
+
+AI量化交易 => 不等于人自己来进行解读
+制定方法 => 让AI 看到这些数据，进行分析
+
+
+财经日历采集：
+方法1：https://gushitong.baidu.com/calendar 百度财经日历
+
+
+Q：大模型搜索的来源是哪里，用搜索引擎吗？
+LLM enable_search，应该是AI大模型 自己的搜索引擎
+大模型会联网
+
+
+Q：老师这个文档里面是用了多个大模型么？
+qwen-flash
+
+
+Q：我们用这个代码，也需要这两个大模型么？之前安装curser的时候老师教我们装的千问吧
+用qwen就可以
+
+
+Q：怎么获取股票所属板块？或者某个概念板块有哪些股票？
+
+
+Q：联网的话 可以自己写代码配置搜索的tools或者是大模型云厂商自己内置的联网搜索就不能选了 像是openclaw默认的就是brave search api
+我在代码中，使用的是 LLM内置的联网搜索
+你也可以使用其他的mcp，tavily search
+
+
+Q：我们的大模型都还没有买，用的是免费的，测试够用么？
+http://class.wucai.com/docs/3-dashscope
+可以使用阿里云百炼，注册后拿到 api key
+第一次使用，30天会有100万的免费token
+
+
+Q：老师我没太明白，第二段prompt设计出的关注点是在事件新闻出现时带入第一段prompt中进行文章关键点和评级溯源吗
+第一个prompt： 是找关键时刻，比如 两会
+第二个prompt：生成一个提问问题
+2026年全国两会即将开幕，请联网搜索分析：今年两会的政策重点方向是什么？市场预期哪些行业会获得政策支持？如果财政赤字率超预期提高，对基建、消费板块有什么影响？投资者需要重点关注哪些政策信号？
+
+
+
+Q：一些行业数据怎么采集
+
+Q：催化剂事件是否需要有回测，怎样进行影响力事件排序
+帮你找到 历史上类似的催化剂事件，股市上的表现；
+
+
+Q：老师，有没有付费的信号？比公共媒体更早一些的信号或新闻
+
+
+Q：这些数据量占用大概多少，长期迭代的话个人电脑够用吗
+一般是够用的
+
+
+Q：miniMax 呢？
+
+Q：qwen-flash是快吗？ 是不是max更强大
+是的 qwen-flash快，max是更强大的模型
+
+
+Q：暂时还开通不了miniqmt，老师每次课程都会把贵州茅台的所有数据都直接提供给我们么
+方法1：找客户经理要模拟账号
+方法2：上节课的方法
+
+Q：我用的股价API前复权adjust支持 四种模式(all, splits, dividends, none)： 一般是splits比较常用，还是all(splits+ dividends)比较常用？
+
+
+
+Q：类似财联社、界面这类新闻数据能实时抓取吗
+LLM enable_search是可以
+
+Q：我买过miniMax，也可以接入的么？
+可以的
+
+
+Q：我们用前复权的股价分析预测，用不用单独下载不复权的股价，来跑回测或simulation，还是也用前复权就行？
+用前复权
+
+Q：写爬虫是否有法律风险？
+robots.txt协议
+https://www.taobao.com/robots.txt
+
+
+Q：强化学习可以做量化吗
+可以
+
+Q：新闻文本数据大
+
+
+Q：能做新闻监控吗？实时分析那种，方便快速判断
+可以的
+
+Q：还没开老师的，我用国金的qmt应该没问题吧
+可以的，能用miniQMT就可以
+
+可以的
+
+
+Q：老师 和客户经理说开通qmt、是开通的miniqmt?
+qmt 和 miniqmt应该是一起的
+
+
+Q：我其实不建议爬虫，量大的话，你还是得花钱。还不如花一千块买tushare的新闻数据
+
+
+Q：回测的话是否抓住有代表性的行情进行回测就可以，
+全量回测是否会降低策略准确性
+回测胜率是否按日胜率计算更有效
+
+
+Q：老师怎么看“只应对不预测”以及“价格包含一切”，这两种思想可以大大减少今天讲的这些工作量
