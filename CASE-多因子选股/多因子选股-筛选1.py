@@ -10,6 +10,13 @@
   4. 资产负债率 <= 60%
   5. 经营现金流/营收 >= 10%
 
+
+  1. ROE >= 10%
+  2. 净利润同比 >= 10%
+  3. 毛利率 >= 30%
+  4. 资产负债率 <= 60%
+  5. 经营现金流/营收 >= 10%
+
 输入：data/stock_fina_pool_QMT.csv（由 多因子选股-下载数据.py 生成）
 输出：data/stock_fina_selected_QMT.csv
 
@@ -29,7 +36,7 @@ if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
 # ============================================================
 # 配置（可按需调整阈值）
 # ============================================================
-ROE_MIN = 15
+ROE_MIN = 10
 NETPROFIT_YOY_MIN = 10
 GROSSPROFIT_MARGIN_MIN = 30
 DEBT_TO_ASSETS_MAX = 60
