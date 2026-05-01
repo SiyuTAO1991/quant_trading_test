@@ -1,22 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-多因子选股 - 数据下载脚本（QMT 版）
-通过 QMT 下载指定板块内所有股票的财务数据，提取指标并汇总保存，供筛选脚本使用。
-同时获取股票名称、申万一级行业，一并写入输出文件。
+多因子选股 - 数据下载脚本（AkShare 版）
+通过 AkShare 下载指定板块内所有股票的财务数据，提取指标并汇总保存，供筛选脚本使用。
+同时获取股票名称，一并写入输出文件。
 
 输出文件：data/stock_fina_pool_QMT.csv（每只股票最新一期财务指标 + 净利润同比 + 名称 + 行业）
 
 运行：python 多因子选股-下载数据.py
-环境：需安装 QMT 并配置好 xtquant，运行前需启动 miniQMT
 """
-import os
 import sys
+import os
 import time
 import traceback
 from datetime import datetime, date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
-from xtquant import xtdata
+import akshare as ak
+import tushare as ts
 
 # Windows 控制台 UTF-8 输出
 if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
@@ -29,184 +29,226 @@ if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
 # 配置
 # ============================================================
 NUM_WORKERS = 8
-# 股票池：沪深A股（全量）
-SECTOR = '沪深A股'
-DATA_START = '20150101'
-DATA_END = date.today().strftime('%Y%m%d')   # 自动使用今天日期
+DATA_START = '20240101'
+DATA_END = date.today().strftime('%Y%m%d')
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 OUTPUT_FILE = os.path.join(DATA_DIR, "stock_fina_pool_QMT.csv")
 
-TABLE_LIST = ['Balance', 'Income', 'CashFlow', 'PershareIndex', 'Capital']
+# 从 .env 读取 Tushare token
+_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
+from dotenv import dotenv_values
+_env = dotenv_values(_env_path)
+TUSHARE_TOKEN = _env.get('TUSHARE_TOKEN', '')
+ts.set_token(TUSHARE_TOKEN)
+pro = ts.pro_api()
 
 
-def normalize_timetag(ts_val):
-    """将 xtquant 的 m_timetag 转换为 YYYYMMDD 字符串。"""
-    if ts_val is None:
+def safe_float(val):
+    """安全转换为浮点数"""
+    if val is None:
         return None
-    s = str(ts_val).strip()
-    if len(s) == 8 and s.isdigit():
-        return s
     try:
-        v = float(s)
-        if v == 0:
+        if str(val).strip() in ('', '--', 'None', 'nan'):
             return None
-        if v > 1e12:
-            v = v / 1000
-        return datetime.fromtimestamp(v).strftime('%Y%m%d')
-    except (OSError, ValueError, TypeError):
+        v = float(val)
+        return v if v == v else None
+    except (ValueError, TypeError):
         return None
-
-
-def get_field(record, field_names, default=None):
-    """从记录中获取字段值，支持多候选字段名。"""
-    for name in field_names:
-        val = record.get(name)
-        if val is not None:
-            return val
-    return default
 
 
 def safe_divide(a, b, pct=False):
     """安全除法，b 为 0 时返回 None。"""
-    if a is None or b is None:
+    if a is None or b is None or pd.isna(a) or pd.isna(b):
         return None
-    a, b = float(a), float(b)
-    if b == 0:
+    try:
+        a, b = float(a), float(b)
+        if b == 0:
+            return None
+        result = a / b
+        if pct:
+            result *= 100
+        return round(result, 4)
+    except (ValueError, TypeError):
         return None
-    result = a / b
-    if pct:
-        result *= 100
-    return round(result, 4)
 
 
-def build_period_map(data_list):
-    """将 xtquant 返回的财务数据转换为 {报告期: 记录} 映射。"""
-    period_map = {}
-    if isinstance(data_list, pd.DataFrame):
-        for _, row in data_list.iterrows():
-            period_date = normalize_timetag(row.get('m_timetag'))
-            if period_date:
-                period_map[period_date] = row.to_dict()
-    elif isinstance(data_list, list):
-        for rec in data_list:
-            if isinstance(rec, dict):
-                period_date = normalize_timetag(rec.get('m_timetag'))
-                if period_date:
-                    period_map[period_date] = rec
-    return period_map
+def get_col(row, col_names, default=None):
+    """从行中获取字段值，支持多个候选列名"""
+    for name in col_names:
+        if name in row.index:
+            val = safe_float(row[name])
+            if val is not None:
+                return val
+        for col in row.index:
+            if name in str(col):
+                val = safe_float(row[col])
+                if val is not None:
+                    return val
+    return default
 
 
-def extract_all_periods(data, stock_code):
-    """
-    从 xtquant 返回的财务数据中提取该股票所有报告期的综合财务指标。
-    data: xtdata.get_financial_data 返回的 {stock: {table: data}}
-    返回: 按报告期排列的记录列表
-    """
-    stock_data = data.get(stock_code, {})
-    if not stock_data:
-        return []
+def ts_code_to_sina(ts_code):
+    """将 Tushare 格式的股票代码转换为新浪格式"""
+    if '.' not in ts_code:
+        return ts_code
+    code, market = ts_code.split('.')
+    if market.upper() == 'SH':
+        return f'sh{code}'
+    elif market.upper() == 'SZ':
+        return f'sz{code}'
+    return ts_code
 
-    pershare_map = build_period_map(stock_data.get('PershareIndex', []))
-    balance_map = build_period_map(stock_data.get('Balance', []))
-    income_map = build_period_map(stock_data.get('Income', []))
-    cashflow_map = build_period_map(stock_data.get('CashFlow', []))
-    capital_map = build_period_map(stock_data.get('Capital', []))
 
-    all_periods = sorted(set(
-        list(pershare_map.keys()) +
-        list(balance_map.keys()) +
-        list(income_map.keys()) +
-        list(cashflow_map.keys())
-    ))
-
+def extract_financial_from_akshare(stock_code):
+    """从 AkShare 获取单只股票的财务数据并提取指标"""
     records = []
-    for period in all_periods:
-        ps = pershare_map.get(period, {})
-        bal = balance_map.get(period, {})
-        inc = income_map.get(period, {})
-        cf = cashflow_map.get(period, {})
-        cap = capital_map.get(period, {})
+    try:
+        sina_code = ts_code_to_sina(stock_code)
+        
+        df_income = None
+        df_balance = None
+        df_cashflow = None
+        
+        try:
+            df_income = ak.stock_financial_report_sina(stock=sina_code, symbol="利润表")
+        except Exception:
+            pass
 
-        eps = get_field(ps, ['s_fa_eps_basic'])
-        bps = get_field(ps, ['s_fa_bps'])
-        ocfps = get_field(ps, ['s_fa_ocfps'])
-        revenue = get_field(inc, ['revenue', 'operating_revenue', 'revenue_inc'])
-        net_profit = get_field(inc, ['net_profit_incl_min_int_inc', 'net_profit_excl_min_int_inc'])
-        operating_profit = get_field(inc, ['oper_profit'])
-        operating_cost = get_field(inc, ['cost_of_goods_sold', 'total_operating_cost', 'total_expense'])
+        try:
+            df_balance = ak.stock_financial_report_sina(stock=sina_code, symbol="资产负债表")
+        except Exception:
+            pass
 
-        grossprofit_margin = get_field(ps, ['sales_gross_profit'])
-        if grossprofit_margin is None and revenue and operating_cost:
-            r, c = float(revenue), float(operating_cost)
-            if r > 0:
-                grossprofit_margin = round((r - c) / r * 100, 2)
+        try:
+            df_cashflow = ak.stock_financial_report_sina(stock=sina_code, symbol="现金流量表")
+        except Exception:
+            pass
 
-        roe = get_field(ps, ['du_return_on_equity', 'equity_roe', 'net_roe'])
-        grossprofit_margin_ps = grossprofit_margin
+        if df_income is None or df_balance is None:
+            return records
 
-        netprofit_margin = safe_divide(net_profit, revenue, pct=True)
+        # 标准化日期列并返回按日期索引的数据
+        def normalize_and_index(df):
+            if df is None or len(df) == 0:
+                return {}
+            date_col_name = df.columns[0]
+            df = df.copy()
+            df['_date'] = df[date_col_name].astype(str).str.replace('-', '').str[:8]
+            result_map = {}
+            for _, row in df.iterrows():
+                period = row['_date']
+                if period and len(period) == 8 and period.isdigit():
+                    if period >= DATA_START:
+                        result_map[period] = row
+            return result_map
 
-        total_assets = get_field(bal, ['tot_assets'])
-        total_liab = get_field(bal, ['tot_liab'])
-        total_equity = get_field(bal, ['total_equity', 'tot_shrhldr_eqy_incl_min_int'])
-        current_assets = get_field(bal, ['total_current_assets'])
-        current_liab = get_field(bal, ['total_current_liability'])
-        inventory = get_field(bal, ['inventories'])
+        income_map = normalize_and_index(df_income)
+        balance_map = normalize_and_index(df_balance)
+        cashflow_map = normalize_and_index(df_cashflow) if df_cashflow is not None else {}
 
-        debt_to_assets = safe_divide(total_liab, total_assets, pct=True)
-        current_ratio = safe_divide(current_assets, current_liab)
-        quick_ratio = None
-        if current_assets and inventory and current_liab:
-            quick_ratio = safe_divide(float(current_assets) - float(inventory), current_liab)
+        # 取所有报告期的交集
+        all_periods = set(income_map.keys()) & set(balance_map.keys())
+        if cashflow_map:
+            all_periods = all_periods & set(cashflow_map.keys())
+        all_periods = sorted(all_periods)
 
-        roa = safe_divide(net_profit, total_assets, pct=True)
-        if roe is None and net_profit and total_equity:
+        for period in all_periods:
+            inc = income_map.get(period)
+            bal = balance_map.get(period)
+            cf = cashflow_map.get(period) if cashflow_map else None
+
+            if inc is None or bal is None:
+                continue
+
+            # --- 从利润表提取 ---
+            revenue = get_col(inc, ['营业收入', '一、营业收入', '一、营业总收入', '营业总收入'])
+            operating_cost = get_col(inc, ['营业成本', '二、营业总成本', '营业总成本'])
+            net_profit = get_col(inc, ['净利润', '五、净利润', '四、净利润'])
+            net_profit_parent = get_col(inc, ['归属于母公司所有者的净利润', '归属于母公司股东的净利润'])
+            eps = get_col(inc, ['基本每股收益', '（一）基本每股收益'])
+
+            if net_profit is None:
+                net_profit = net_profit_parent
+
+            # --- 从资产负债表提取 ---
+            total_assets = get_col(bal, ['资产总计', '总资产'])
+            total_liab = get_col(bal, ['负债合计', '总负债'])
+            total_equity = get_col(bal, ['所有者权益合计', '所有者权益或股东权益合计', '股东权益合计'])
+            current_assets = get_col(bal, ['流动资产合计'])
+            current_liab = get_col(bal, ['流动负债合计'])
+            inventory = get_col(bal, ['存货'])
+
+            # --- 从现金流量表提取 ---
+            operating_cashflow = None
+            if cf is not None:
+                operating_cashflow = get_col(cf, ['经营活动产生的现金流量净额', '经营活动现金流量净额'])
+
+            # --- 计算指标 ---
+            grossprofit_margin = None
+            if revenue is not None and operating_cost is not None and revenue > 0:
+                grossprofit_margin = safe_divide(revenue - operating_cost, revenue, pct=True)
+
+            netprofit_margin = safe_divide(net_profit, revenue, pct=True)
+
             roe = safe_divide(net_profit, total_equity, pct=True)
+            roa = safe_divide(net_profit, total_assets, pct=True)
+            debt_to_assets = safe_divide(total_liab, total_assets, pct=True)
+            current_ratio = safe_divide(current_assets, current_liab)
+            
+            quick_ratio = None
+            if current_assets is not None and inventory is not None and current_liab is not None:
+                quick_ratio = safe_divide(current_assets - inventory, current_liab)
 
-        assets_turn = safe_divide(revenue, total_assets)
-        operating_cashflow = get_field(cf, ['net_cash_flows_oper_act'])
-        ocf_to_revenue = safe_divide(operating_cashflow, revenue, pct=True)
-        ocf_to_profit = safe_divide(operating_cashflow, net_profit)
+            assets_turn = safe_divide(revenue, total_assets)
+            ocf_to_revenue = safe_divide(operating_cashflow, revenue, pct=True)
+            ocf_to_profit = safe_divide(operating_cashflow, net_profit)
 
-        record = {
-            'end_date': period,
-            'eps': eps,
-            'bps': bps,
-            'ocfps': ocfps,
-            'roe': roe,
-            'roa': roa,
-            'grossprofit_margin': grossprofit_margin_ps,
-            'netprofit_margin': netprofit_margin,
-            'debt_to_assets': debt_to_assets,
-            'current_ratio': current_ratio,
-            'quick_ratio': quick_ratio,
-            'assets_turn': assets_turn,
-            'operating_cashflow': operating_cashflow,
-            'ocf_to_revenue': ocf_to_revenue,
-            'ocf_to_profit': ocf_to_profit,
-            'revenue': revenue,
-            'net_profit': net_profit,
-            'total_assets': total_assets,
-            'total_equity': total_equity,
-        }
-        records.append(record)
+            record = {
+                'end_date': period,
+                'eps': eps,
+                'bps': None,
+                'ocfps': None,
+                'roe': roe,
+                'roa': roa,
+                'grossprofit_margin': grossprofit_margin,
+                'netprofit_margin': netprofit_margin,
+                'debt_to_assets': debt_to_assets,
+                'current_ratio': current_ratio,
+                'quick_ratio': quick_ratio,
+                'assets_turn': assets_turn,
+                'operating_cashflow': operating_cashflow,
+                'ocf_to_revenue': ocf_to_revenue,
+                'ocf_to_profit': ocf_to_profit,
+                'revenue': revenue,
+                'net_profit': net_profit,
+                'total_assets': total_assets,
+                'total_equity': total_equity,
+            }
+            records.append(record)
 
+    except Exception as e:
+        pass
+    
     return records
 
 
 def calc_netprofit_yoy(records):
-    """
-    用年报数据计算最新一期净利润同比增长率。
-    取 end_date 以 1231 结尾的报告期，按 pct_change 计算同比。
-    """
+    """用年报数据计算最新一期净利润同比增长率"""
     if not records:
         return None
     annual = [r for r in records if str(r.get('end_date', '')).endswith('1231')]
     if len(annual) < 2:
         return None
     annual = sorted(annual, key=lambda x: x['end_date'])
-    profits = [float(r['net_profit']) for r in annual if r.get('net_profit') is not None]
+    profits = []
+    for r in annual:
+        p = r.get('net_profit')
+        if p is not None and not pd.isna(p):
+            try:
+                profits.append(float(p))
+            except Exception:
+                pass
     if len(profits) < 2:
         return None
     s = pd.Series(profits)
@@ -214,132 +256,80 @@ def calc_netprofit_yoy(records):
     return round(yoy, 2)
 
 
-def get_stock_industry_map():
-    """
-    获取股票 -> 申万一级行业 映射。
-    通过遍历申万一级行业板块，反向构建每只股票所属行业。
-    """
-    stock_to_industry = {}
+def get_stock_list():
+    """获取沪深A股股票列表（过滤ETF和基金）"""
+    stock_list = []
+    stock_name_map = {}
+    stock_industry_map = {}
+    
     try:
-        all_sectors = xtdata.get_sector_list()
-        sw1_sectors = [s for s in all_sectors if str(s).upper().startswith('SW1') and '加权' not in str(s)]
-        for sector in sw1_sectors:
-            stocks = xtdata.get_stock_list_in_sector(sector)
-            if stocks:
-                for stk in stocks:
-                    if '.' in str(stk):
-                        stock_to_industry[stk] = sector
+        # 使用 AkShare 获取股票列表
+        df_stock = ak.stock_info_a_code_name()
+        for _, row in df_stock.iterrows():
+            code = row['code']
+            name = row['name']
+            
+            # 过滤规则：
+            # - 保留：6开头（沪市主板）、0开头（深市主板、中小板）、3开头（创业板）
+            # - 排除：5开头（ETF）、1开头（基金、ETF）、8开头（北交所）
+            if code.startswith('6') or code.startswith('0') or code.startswith('3'):
+                if code.startswith('6'):
+                    ts_code = f"{code}.SH"
+                else:
+                    ts_code = f"{code}.SZ"
+                stock_list.append(ts_code)
+                stock_name_map[ts_code] = name
     except Exception as e:
-        print(f"获取行业映射异常: {e}")
-    return stock_to_industry
+        print(f"获取股票列表异常: {e}")
+    
+    return stock_list, stock_name_map, stock_industry_map
 
 
-def get_stock_name(stock_code):
-    """从 QMT 获取股票名称。"""
-    try:
-        detail = xtdata.get_instrument_detail(stock_code)
-        if detail:
-            return detail.get('InstrumentName', '') or ''
-    except Exception:
-        pass
-    return ''
-
-
-def download_one_stock(stock_code, industry_map=None):
-    """下载单只股票的财务数据并提取最新一期指标（含 netprofit_yoy）。"""
-    done_count = [0]
-
-    def on_done(data):
-        done_count[0] += 1
-
-    for table_name in TABLE_LIST:
-        xtdata.download_financial_data2(
-            stock_list=[stock_code],
-            table_list=[table_name],
-            start_time=DATA_START,
-            end_time=DATA_END,
-            callback=on_done
-        )
-
-    for _ in range(60):
-        if done_count[0] >= len(TABLE_LIST):
-            break
-        time.sleep(0.2)
-
-    time.sleep(0.3)
-
-    data = xtdata.get_financial_data(
-        stock_list=[stock_code],
-        table_list=TABLE_LIST,
-        start_time=DATA_START,
-        end_time=DATA_END,
-        report_type='report_time'
-    )
-
-    if not data or stock_code not in data:
-        return None
-
-    records = extract_all_periods(data, stock_code)
+def download_one_stock(stock_code, name_map=None, industry_map=None):
+    """下载单只股票的财务数据并提取最新一期指标"""
+    records = extract_financial_from_akshare(stock_code)
+    
     if not records:
         return None
-
+        
     records = sorted(records, key=lambda x: x['end_date'])
     latest = records[-1].copy()
     latest['netprofit_yoy'] = calc_netprofit_yoy(records)
     latest['stock_code'] = stock_code
-    latest['stock_name'] = get_stock_name(stock_code)
-    latest['industry'] = (industry_map or {}).get(stock_code, '')
+    latest['stock_name'] = name_map.get(stock_code, '') if name_map else ''
+    latest['industry'] = ''
+    
     return latest
 
 
 def main():
-    print("多因子选股 - 财务数据下载（QMT）")
-    print(f"板块：{SECTOR}")
+    print("=" * 60)
+    print("多因子选股 - 财务数据下载（AkShare）")
     print(f"日期：{DATA_START} ~ {DATA_END}")
-    print("-" * 50)
+    print("=" * 60)
 
     try:
-        print("连接 QMT...")
-        xtdata.connect()
-        # 注意：download_sector_data() 在新版 QMT 中可能卡住，先直接尝试获取
-        print("获取股票列表...")
-        stock_list = xtdata.get_stock_list_in_sector(SECTOR)
+        print("\n获取股票列表...")
+        stock_list, stock_name_map, stock_industry_map = get_stock_list()
         if not stock_list:
-            sectors = xtdata.get_sector_list()
-            print(f"错误：板块 '{SECTOR}' 返回空列表")
-            if sectors:
-                # 从板块列表中找包含"沪深"的
-                hs = [s for s in sectors if '沪深' in str(s)][:15]
-                print(f"含'沪深'的板块示例：{hs}")
+            print("错误：未获取到股票列表")
             return None
 
-        # 只保留股票代码（含 .SH / .SZ 的为主板/创业板等）
-        stock_list = [c for c in stock_list if '.' in str(c)]
+        # 下载所有股票
+        # stock_list = stock_list[:100]
         total = len(stock_list)
         print(f"共 {total} 只股票待下载")
-
-        print("获取行业映射...")
-        industry_map = get_stock_industry_map()
-        print(f"  已映射 {len(industry_map)} 只股票行业")
 
         pool = []
         failed = []
         start_time = time.time()
 
-        def _download(code):
-            """供线程池调用的包装，返回 (code, row 或 None)。"""
-            try:
-                row = download_one_stock(code, industry_map)
-                return code, row
-            except Exception:
-                return code, None
-
-        print(f"并行下载（{NUM_WORKERS} 线程）...")
+        print(f"\n并行下载（{NUM_WORKERS} 线程）...")
         with ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
-            futures = {executor.submit(_download, code): code for code in stock_list}
+            futures = {executor.submit(download_one_stock, code, stock_name_map, stock_industry_map): code for code in stock_list}
             done = 0
             for future in as_completed(futures):
-                code, row = future.result()
+                code, row = futures[future], future.result()
                 if row:
                     pool.append(row)
                 else:
@@ -352,7 +342,7 @@ def main():
                 sys.stdout.write(f"\r获取财务 {done}/{total} ({pct:.1f}%) | {speed:.1f} 只/秒 | 剩余约 {eta:.0f} 秒 | 成功 {len(pool)} 只    ")
                 sys.stdout.flush()
         elapsed = time.time() - start_time
-        print(f"\n  完成，耗时 {elapsed:.1f} 秒")
+        print(f"\n完成，耗时 {elapsed:.1f} 秒")
 
         if not pool:
             print("错误：未成功提取任何股票数据")
@@ -360,9 +350,9 @@ def main():
 
         df = pd.DataFrame(pool)
         cols_order = ['stock_code', 'stock_name', 'industry', 'end_date', 'roe', 'netprofit_yoy',
-                      'grossprofit_margin', 'debt_to_assets', 'current_ratio', 'operating_cashflow',
-                      'ocf_to_revenue', 'ocf_to_profit', 'net_profit', 'revenue', 'eps', 'bps',
-                      'roa', 'netprofit_margin', 'quick_ratio', 'assets_turn', 'total_assets', 'total_equity']
+                     'grossprofit_margin', 'debt_to_assets', 'current_ratio', 'operating_cashflow',
+                     'ocf_to_revenue', 'ocf_to_profit', 'net_profit', 'revenue', 'eps', 'bps',
+                     'roa', 'netprofit_margin', 'quick_ratio', 'assets_turn', 'total_assets', 'total_equity']
         for c in cols_order:
             if c not in df.columns:
                 df[c] = None
@@ -390,3 +380,4 @@ if __name__ == "__main__":
         print("\n下载完成")
     else:
         print("\n下载失败")
+

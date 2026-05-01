@@ -58,142 +58,170 @@ def _find_col(columns, keywords):
 
 def fetch_cpi():
     print("  采集CPI...")
-    df = ak.macro_china_cpi()
-    if df is None or len(df) == 0:
+    try:
+        df = ak.macro_china_cpi()
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+        date_col = df.columns[0]
+        value_col = _find_col(df.columns, ['全国-同比增长', '同比增长', '同比'])
+        if value_col is None:
+            value_col = df.columns[2] if len(df.columns) > 2 else df.columns[1]
+        result = pd.DataFrame({
+            'date': _parse_cn_date(df[date_col]),
+            'cpi_yoy': pd.to_numeric(df[value_col], errors='coerce')
+        }).dropna()
+        print(f"    CPI: {len(result)} 条")
+        return result
+    except Exception as e:
+        print(f"    CPI 采集失败: {e}")
         return pd.DataFrame()
-    date_col = df.columns[0]
-    value_col = _find_col(df.columns, ['全国-同比增长', '同比增长', '同比'])
-    if value_col is None:
-        value_col = df.columns[2] if len(df.columns) > 2 else df.columns[1]
-    result = pd.DataFrame({
-        'date': _parse_cn_date(df[date_col]),
-        'cpi_yoy': pd.to_numeric(df[value_col], errors='coerce')
-    }).dropna()
-    print(f"    CPI: {len(result)} 条")
-    return result
 
 
 def fetch_ppi():
     print("  采集PPI...")
-    df = ak.macro_china_ppi()
-    if df is None or len(df) == 0:
+    try:
+        df = ak.macro_china_ppi()
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+        date_col = df.columns[0]
+        value_col = _find_col(df.columns, ['当月同比增长', '同比增长', '同比'])
+        if value_col is None:
+            value_col = df.columns[2] if len(df.columns) > 2 else df.columns[1]
+        result = pd.DataFrame({
+            'date': _parse_cn_date(df[date_col]),
+            'ppi_yoy': pd.to_numeric(df[value_col], errors='coerce')
+        }).dropna()
+        print(f"    PPI: {len(result)} 条")
+        return result
+    except Exception as e:
+        print(f"    PPI 采集失败: {e}")
         return pd.DataFrame()
-    date_col = df.columns[0]
-    value_col = _find_col(df.columns, ['当月同比增长', '同比增长', '同比'])
-    if value_col is None:
-        value_col = df.columns[2] if len(df.columns) > 2 else df.columns[1]
-    result = pd.DataFrame({
-        'date': _parse_cn_date(df[date_col]),
-        'ppi_yoy': pd.to_numeric(df[value_col], errors='coerce')
-    }).dropna()
-    print(f"    PPI: {len(result)} 条")
-    return result
 
 
 def fetch_pmi():
     print("  采集PMI...")
-    df = ak.macro_china_pmi()
-    if df is None or len(df) == 0:
+    try:
+        df = ak.macro_china_pmi()
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+        date_col = df.columns[0]
+        value_col = _find_col(df.columns, ['制造业-指标', '制造业', 'PMI'])
+        if value_col is None:
+            value_col = df.columns[1]
+        result = pd.DataFrame({
+            'date': _parse_cn_date(df[date_col]),
+            'pmi': pd.to_numeric(df[value_col], errors='coerce')
+        }).dropna()
+        print(f"    PMI: {len(result)} 条")
+        return result
+    except Exception as e:
+        print(f"    PMI 采集失败: {e}")
         return pd.DataFrame()
-    date_col = df.columns[0]
-    value_col = _find_col(df.columns, ['制造业-指标', '制造业', 'PMI'])
-    if value_col is None:
-        value_col = df.columns[1]
-    result = pd.DataFrame({
-        'date': _parse_cn_date(df[date_col]),
-        'pmi': pd.to_numeric(df[value_col], errors='coerce')
-    }).dropna()
-    print(f"    PMI: {len(result)} 条")
-    return result
 
 
 def fetch_m2():
     print("  采集M2...")
-    df = ak.macro_china_supply_of_money()
-    if df is None or len(df) == 0:
+    try:
+        df = ak.macro_china_supply_of_money()
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+        date_col = df.columns[0]
+        value_col = _find_col(df.columns, ['M2）同比增长', 'M2)同比', 'M2同比'])
+        if value_col is None:
+            value_col = df.columns[2] if len(df.columns) > 2 else df.columns[1]
+        result = pd.DataFrame({
+            'date': _parse_cn_date(df[date_col]),
+            'm2_yoy': pd.to_numeric(df[value_col], errors='coerce')
+        }).dropna()
+        print(f"    M2: {len(result)} 条")
+        return result
+    except Exception as e:
+        print(f"    M2 采集失败: {e}")
         return pd.DataFrame()
-    date_col = df.columns[0]
-    value_col = _find_col(df.columns, ['M2\uff09\u540c\u6bd4\u589e\u957f', 'M2)\u540c\u6bd4', 'M2\u540c\u6bd4'])
-    if value_col is None:
-        value_col = df.columns[2] if len(df.columns) > 2 else df.columns[1]
-    result = pd.DataFrame({
-        'date': _parse_cn_date(df[date_col]),
-        'm2_yoy': pd.to_numeric(df[value_col], errors='coerce')
-    }).dropna()
-    print(f"    M2: {len(result)} 条")
-    return result
 
 
 def fetch_shrzgm():
     """采集社会融资规模增量(亿元)"""
     print("  采集社融...")
-    df = ak.macro_china_shrzgm()
-    if df is None or len(df) == 0:
+    try:
+        df = ak.macro_china_shrzgm()
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+        date_col = df.columns[0]  # 月份 (格式: 202512)
+        total_col = df.columns[1]  # 社会融资规模增量
+        result = pd.DataFrame({
+            'date': _parse_cn_date(df[date_col]),
+            'shrzgm': pd.to_numeric(df[total_col], errors='coerce')
+        }).dropna()
+        print(f"    社融: {len(result)} 条")
+        return result
+    except Exception as e:
+        print(f"    社融 采集失败: {e}")
         return pd.DataFrame()
-    date_col = df.columns[0]  # 月份 (格式: 202512)
-    total_col = df.columns[1]  # 社会融资规模增量
-    result = pd.DataFrame({
-        'date': _parse_cn_date(df[date_col]),
-        'shrzgm': pd.to_numeric(df[total_col], errors='coerce')
-    }).dropna()
-    print(f"    社融: {len(result)} 条")
-    return result
 
 
 def fetch_lpr():
     """采集LPR利率(1年/5年)，月频取每月最新值"""
     print("  采集LPR...")
-    df = ak.macro_china_lpr()
-    if df is None or len(df) == 0:
+    try:
+        df = ak.macro_china_lpr()
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+        df['date'] = pd.to_datetime(df['TRADE_DATE'])
+        df['lpr_1y'] = pd.to_numeric(df['LPR1Y'], errors='coerce')
+        df['lpr_5y'] = pd.to_numeric(df['LPR5Y'], errors='coerce')
+        result = df[['date', 'lpr_1y', 'lpr_5y']].dropna()
+        print(f"    LPR: {len(result)} 条")
+        return result
+    except Exception as e:
+        print(f"    LPR 采集失败: {e}")
         return pd.DataFrame()
-    df['date'] = pd.to_datetime(df['TRADE_DATE'])
-    df['lpr_1y'] = pd.to_numeric(df['LPR1Y'], errors='coerce')
-    df['lpr_5y'] = pd.to_numeric(df['LPR5Y'], errors='coerce')
-    result = df[['date', 'lpr_1y', 'lpr_5y']].dropna()
-    print(f"    LPR: {len(result)} 条")
-    return result
 
 
 def fetch_bond_yield():
     """采集中美10年期国债收益率(日频)，写入 trade_rate_daily"""
     print("  采集国债收益率...")
-    # 近3年数据
-    start = (pd.Timestamp.now() - pd.DateOffset(years=3)).strftime('%Y%m%d')
-    df = ak.bond_zh_us_rate(start_date=start)
-    if df is None or len(df) == 0:
+    try:
+        # 近3年数据
+        start = (pd.Timestamp.now() - pd.DateOffset(years=3)).strftime('%Y%m%d')
+        df = ak.bond_zh_us_rate(start_date=start)
+        if df is None or len(df) == 0:
+            return 0
+
+        cols = df.columns.tolist()
+        date_col = cols[0]
+        cn10_col = cols[3]   # 中国国债收益率10年
+        us10_col = cols[9]   # 美国国债收益率10年
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        sql = """
+            INSERT INTO trade_rate_daily (rate_date, cn_bond_10y, us_bond_10y, data_source)
+            VALUES (%s, %s, %s, 'akshare')
+            ON DUPLICATE KEY UPDATE
+            cn_bond_10y=COALESCE(VALUES(cn_bond_10y), cn_bond_10y),
+            us_bond_10y=COALESCE(VALUES(us_bond_10y), us_bond_10y)
+        """
+        count = 0
+        for _, row in df.iterrows():
+            d = row[date_col]
+            if pd.isna(d):
+                continue
+            cn = float(row[cn10_col]) if pd.notna(row[cn10_col]) else None
+            us = float(row[us10_col]) if pd.notna(row[us10_col]) else None
+            if cn is None and us is None:
+                continue
+            cursor.execute(sql, (pd.Timestamp(d).strftime('%Y-%m-%d'), cn, us))
+            count += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"    国债收益率: {count} 条写入 trade_rate_daily")
+        return count
+    except Exception as e:
+        print(f"    国债收益率 采集失败: {e}")
         return 0
-
-    cols = df.columns.tolist()
-    date_col = cols[0]
-    cn10_col = cols[3]   # 中国国债收益率10年
-    us10_col = cols[9]   # 美国国债收益率10年
-
-    conn = get_connection()
-    cursor = conn.cursor()
-    sql = """
-        INSERT INTO trade_rate_daily (rate_date, cn_bond_10y, us_bond_10y, data_source)
-        VALUES (%s, %s, %s, 'akshare')
-        ON DUPLICATE KEY UPDATE
-        cn_bond_10y=COALESCE(VALUES(cn_bond_10y), cn_bond_10y),
-        us_bond_10y=COALESCE(VALUES(us_bond_10y), us_bond_10y)
-    """
-    count = 0
-    for _, row in df.iterrows():
-        d = row[date_col]
-        if pd.isna(d):
-            continue
-        cn = float(row[cn10_col]) if pd.notna(row[cn10_col]) else None
-        us = float(row[us10_col]) if pd.notna(row[us10_col]) else None
-        if cn is None and us is None:
-            continue
-        cursor.execute(sql, (pd.Timestamp(d).strftime('%Y-%m-%d'), cn, us))
-        count += 1
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-    print(f"    国债收益率: {count} 条写入 trade_rate_daily")
-    return count
 
 
 # ==================== 月度数据合并写入 ====================

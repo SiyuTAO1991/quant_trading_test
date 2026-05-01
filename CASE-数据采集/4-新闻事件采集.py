@@ -26,6 +26,8 @@ if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
 # ============================================================
 # 配置
 # ============================================================
+TEST_MODE = True
+TEST_STOCKS = ['600519.SH', '600036.SH', '000001.SZ']
 NUM_WORKERS = 8
 
 POSITIVE_WORDS = ['涨停', '大涨', '利好', '增长', '突破', '新高', '预增', '增持',
@@ -189,17 +191,21 @@ def main():
     global _existing_titles
 
     print("=" * 60)
-    print("新闻事件采集（全量A股）")
+    print("新闻事件采集 AkShare -> MySQL")
     print("=" * 60)
 
-    stock_list = get_all_stocks()
-    print("全量股票: {} 只".format(len(stock_list)))
+    if TEST_MODE:
+        stock_list = TEST_STOCKS
+        print("测试模式，采集 {} 只股票".format(len(stock_list)))
+    else:
+        stock_list = get_all_stocks()
+        print("全量股票: {} 只".format(len(stock_list)))
 
-    # 跳过当日已采集过的股票
-    collected = get_today_collected()
-    if collected:
-        stock_list = [c for c in stock_list if c not in collected]
-        print("跳过当日已采集: {} 只, 待采集: {} 只".format(len(collected), len(stock_list)))
+        # 跳过当日已采集过的股票
+        collected = get_today_collected()
+        if collected:
+            stock_list = [c for c in stock_list if c not in collected]
+            print("跳过当日已采集: {} 只, 待采集: {} 只".format(len(collected), len(stock_list)))
 
     if not stock_list:
         print("全部股票当日已采集，无需再跑")
@@ -234,7 +240,7 @@ def main():
             except Exception:
                 pass
 
-            if done % 200 == 0 or done == total:
+            if done % 10 == 0 or done == total:
                 elapsed = time.time() - start_time
                 speed = done / elapsed if elapsed > 0 else 0
                 eta = (total - done) / speed if speed > 0 else 0

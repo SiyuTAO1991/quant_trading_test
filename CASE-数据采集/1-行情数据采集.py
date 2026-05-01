@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-行情数据采集 - 使用MiniQMT(xtquant)下载全量A股日线数据存入MySQL
+行情数据采集 - 使用Tushare Pro下载全量A股日线数据存入MySQL
 
 功能：
-  1. 连接MiniQMT数据服务
+  1. 连接Tushare Pro API
   2. 获取沪深A股全量股票列表（约5000只）
   3. 一次性批量查询DB中已有的最新日期，仅下载增量数据
   4. 多线程写入MySQL的trade_stock_daily表（ON DUPLICATE KEY UPDATE）
@@ -18,24 +18,32 @@
   - TEST_MODE = False -> 采集沪深A股全量股票
 
 运行：python 1-行情数据采集.py
-环境：需安装QMT并配置好xtquant, pip install pymysql python-dotenv
+环境：pip install tushare pymysql python-dotenv
+      需设置环境变量 TUSHARE_TOKEN
 """
 import sys
 import os
 import time
-from datetime import date, timedelta
+from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from xtquant import xtdata
+from dotenv import load_dotenv
+import pandas as pd
+import tushare as ts
+
+# 加载.env环境变量
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from db_config import get_connection, execute_query
 
-if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
+# 修复Windows终端编码问题
+if sys.platform == 'win32':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
     except Exception:
         pass
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 # ============================================================
 # 配置
@@ -45,7 +53,37 @@ TEST_STOCK = '600519.SH'
 
 SECTOR = '沪深A股'
 NUM_WORKERS = 8
-DATA_START = '20230101'
+DATA_START = '20250101'
+
+
+# ============================================================
+# Tushare辅助
+# ============================================================
+
+def get_pro():
+    """获取 Tushare Pro 实例（需环境变量 TUSHARE_TOKEN）"""
+    token = os.environ.get("TUSHARE_TOKEN")
+    if not token or not str(token).strip():
+        raise RuntimeError("未设置环境变量 TUSHARE_TOKEN，请先设置后再运行")
+    ts.set_token(str(token).strip())
+    return ts.pro_api()
+
+
+def get_stock_list():
+    """获取沪深A股全量股票列表"""
+    pro = get_pro()
+    # 获取所有正常上市的股票
+    df = pro.stock_basic(
+        exchange='',
+        list_status='L',
+        fields='ts_code,symbol,name,area,industry,list_date'
+    )
+    # 转换为标准格式：600519.SH
+    codes = []
+    for _, row in df.iterrows():
+        code = row['ts_code']
+        codes.append(code)
+    return codes
 
 
 # ============================================================
@@ -80,66 +118,67 @@ INSERT_SQL = """
 """
 
 
-def _get_float_shares(stock_code):
-    """获取流通股本（股），用于计算换手率"""
-    try:
-        detail = xtdata.get_instrument_detail(stock_code)
-        if detail:
-            neg = detail.get('NegotiableVolume') or detail.get('TotalVolume') or 0
-            if neg > 0:
-                return neg
-    except Exception:
-        pass
-    return 0
-
-
 def download_and_save(stock_code, start_date):
     """增量下载单只股票的日线数据并写入MySQL"""
-    xtdata.download_history_data(stock_code, '1d', start_time=start_date)
+    # Tushare日期格式：YYYYMMDD
+    end_date = date.today().strftime('%Y%m%d')
+    
+    try:
+        # 使用 ts.pro_bar 获取前复权日线数据
+        df = ts.pro_bar(
+            ts_code=stock_code,
+            start_date=start_date,
+            end_date=end_date,
+            adj='qfq',   # 前复权
+            freq='D'      # 日线
+        )
 
-    data = xtdata.get_market_data_ex(
-        field_list=['open', 'high', 'low', 'close', 'volume', 'amount'],
-        stock_list=[stock_code],
-        period='1d',
-        start_time=start_date,
-        dividend_type='front',
-    )
+        if df is None or len(df) == 0:
+            return stock_code, 0
 
-    if not data or stock_code not in data:
-        return stock_code, 0
+        # 整理数据格式
+        df = df.rename(columns={
+            'trade_date': 'date',
+            'vol': 'volume'
+        })
+        df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
+        df = df.sort_values('date').reset_index(drop=True)
 
-    df = data[stock_code]
-    if df is None or len(df) == 0:
-        return stock_code, 0
+        # 注：turnover_rate（换手率）需要 Tushare daily_basic 接口权限
+        # 免费版无此权限，暂设为 None
+        df['turnover_rate'] = None
 
-    float_shares = _get_float_shares(stock_code)
-
-    rows = []
-    for idx, row in df.iterrows():
-        idx_str = str(idx)
-        if len(idx_str) >= 8:
-            trade_date = f"{idx_str[:4]}-{idx_str[4:6]}-{idx_str[6:8]}"
-            vol = int(row['volume'])
-            # xtdata volume 单位是手(1手=100股)，流通股本单位是股
-            vol_shares = vol * 100
-            turnover = round(vol_shares / float_shares * 100, 4) if float_shares > 0 and vol > 0 else None
+        rows = []
+        for _, row in df.iterrows():
+            trade_date = row['date'].strftime('%Y-%m-%d')
+            vol = int(row.get('volume', 0))  # Tushare volume单位是手
+            amount = float(row.get('amount', 0)) if 'amount' in row else 0.0
+            turnover = None  # 暂无换手率数据
+            
             rows.append((
                 stock_code, trade_date,
-                float(row['open']), float(row['high']),
-                float(row['low']), float(row['close']),
-                vol, float(row['amount']),
+                float(row.get('open', 0)),
+                float(row.get('high', 0)),
+                float(row.get('low', 0)),
+                float(row.get('close', 0)),
+                vol,
+                amount,
                 turnover,
             ))
 
-    if rows:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.executemany(INSERT_SQL, rows)
-        conn.commit()
-        cursor.close()
-        conn.close()
+        if rows:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.executemany(INSERT_SQL, rows)
+            conn.commit()
+            cursor.close()
+            conn.close()
 
-    return stock_code, len(rows)
+        return stock_code, len(rows)
+        
+    except Exception as e:
+        print(f"  下载 {stock_code} 失败: {e}")
+        return stock_code, -1
 
 
 # ============================================================
@@ -147,17 +186,19 @@ def download_and_save(stock_code, start_date):
 # ============================================================
 
 def main():
+    global pro
+    
     print("=" * 60)
-    print("行情数据采集 (MiniQMT -> MySQL)")
+    print("行情数据采集 (Tushare Pro -> MySQL)")
     if TEST_MODE:
         print("[测试模式] 只采集贵州茅台")
     else:
         print(f"[全量模式] 采集{SECTOR}, {NUM_WORKERS}线程并行")
     print("=" * 60)
 
-    print("\n连接QMT数据服务...")
-    xtdata.connect()
-    print("  连接成功")
+    print("\n初始化Tushare Pro...")
+    pro = get_pro()
+    print("  初始化成功")
 
     # 获取股票列表
     if TEST_MODE:
@@ -165,14 +206,12 @@ def main():
         print(f"\n[测试模式] 只采集 {TEST_STOCK}")
     else:
         print(f"\n获取 {SECTOR} 股票列表...")
-        all_codes = xtdata.get_stock_list_in_sector(SECTOR)
-        all_codes = [c for c in all_codes if '.' in str(c)]
+        all_codes = get_stock_list()
         print(f"  共 {len(all_codes)} 只股票")
 
     # 批量查询DB中已有的最新日期
     print("查询数据库已有数据...")
     existing = get_existing_latest_dates()
-    # 今天的数据已有则跳过，否则尝试增量更新
     recent_cutoff = date.today().strftime('%Y%m%d')
 
     tasks = []
@@ -185,7 +224,7 @@ def main():
         start = latest if latest else DATA_START
         tasks.append((code, start))
 
-    print(f"  需更新: {len(tasks)} 只, 跳过(今日已有数据): {skip_count} 只")
+    print(f"  需要更新: {len(tasks)} 只, 跳过(今日已有数据): {skip_count} 只")
 
     if not tasks:
         print("\n全部已是最新，无需更新")
