@@ -6,7 +6,7 @@ from pathlib import Path
 import pymysql
 from dotenv import dotenv_values
 
-_env_path = Path(__file__).parent / '.env'
+_env_path = Path(__file__).parent.parent / '.env'
 _env = dotenv_values(_env_path)
 
 # 数据库配置

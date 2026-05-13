@@ -49,7 +49,7 @@ if sys.platform == 'win32':
 # 配置
 # ============================================================
 TEST_MODE = True
-TEST_STOCK = '600519.SH'
+TEST_STOCK = '600406.SH'
 
 SECTOR = '沪深A股'
 NUM_WORKERS = 8

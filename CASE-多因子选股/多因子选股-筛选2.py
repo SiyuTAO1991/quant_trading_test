@@ -169,11 +169,14 @@ def main():
     df = add_industry_percentile(df)
     df = add_industry_score(df)
 
-    mask = (df['industry_score'] >= SCORE_MIN) & df['industry_score'].notna()
-    print(f"  打分制：5 项总分 >= {SCORE_MIN}（每项 1~5 分，总分 5~25）: 剩余 {mask.sum()} 只")
-
-    selected = df[mask].copy()
-    selected = selected.sort_values('industry_score', ascending=False).reset_index(drop=True)
+    if 'industry_score' in df.columns and df['industry_score'].notna().any():
+        mask = (df['industry_score'] >= SCORE_MIN) & df['industry_score'].notna()
+        print(f"  打分制：5 项总分 >= {SCORE_MIN}（每项 1~5 分，总分 5~25）: 剩余 {mask.sum()} 只")
+        selected = df[mask].copy()
+        selected = selected.sort_values('industry_score', ascending=False).reset_index(drop=True)
+    else:
+        print("  警告：没有足够的行业数据进行打分制筛选，返回全部股票")
+        selected = df.copy()
 
     selected.to_csv(OUTPUT_FILE, index=False, encoding='utf-8-sig')
     print(f"\n筛选完成：共 {len(selected)} 只股票达标")

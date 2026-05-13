@@ -98,5 +98,5 @@ if __name__ == '__main__':
             meta = info['meta']
             print(f"\n策略: {meta.get('name', key)}")
             print(f"逻辑: {meta.get('logic', '')}")
-            run_and_report(info['class'], '600519.SH', '2024-01-01', '2025-12-31',
+            run_and_report(info['class'], '600406.SH', '2025-01-01', '2026-05-12',
                           label=meta.get('name', key), plot=True)

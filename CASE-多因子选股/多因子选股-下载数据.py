@@ -257,7 +257,7 @@ def calc_netprofit_yoy(records):
 
 
 def get_stock_list():
-    """获取沪深A股股票列表（过滤ETF和基金）"""
+    """获取沪深A股股票列表（过滤ETF和基金）以及行业信息"""
     stock_list = []
     stock_name_map = {}
     stock_industry_map = {}
@@ -279,8 +279,30 @@ def get_stock_list():
                     ts_code = f"{code}.SZ"
                 stock_list.append(ts_code)
                 stock_name_map[ts_code] = name
+        
+        # 尝试使用 AkShare 获取行业信息
+        try:
+            print("尝试获取行业分类信息...")
+            # 获取申万一级行业成分股
+            df_ind_sw = ak.index_stock_cons_sina(symbol="sina_a_stock")
+            if df_ind_sw is not None and len(df_ind_sw) > 0:
+                for _, row in df_ind_sw.iterrows():
+                    code = row.get('code', '')
+                    industry = row.get('industry', '')
+                    if code and industry:
+                        if code.startswith('6'):
+                            ts_code = f"{code}.SH"
+                        else:
+                            ts_code = f"{code}.SZ"
+                        stock_industry_map[ts_code] = industry
+                print(f"获取到 {len(stock_industry_map)} 只股票的行业信息")
+        except Exception as e:
+            print(f"获取行业信息失败: {e}，将使用空行业信息")
+            pass
     except Exception as e:
         print(f"获取股票列表异常: {e}")
+        import traceback
+        traceback.print_exc()
     
     return stock_list, stock_name_map, stock_industry_map
 
@@ -297,7 +319,7 @@ def download_one_stock(stock_code, name_map=None, industry_map=None):
     latest['netprofit_yoy'] = calc_netprofit_yoy(records)
     latest['stock_code'] = stock_code
     latest['stock_name'] = name_map.get(stock_code, '') if name_map else ''
-    latest['industry'] = ''
+    latest['industry'] = industry_map.get(stock_code, '') if industry_map else ''
     
     return latest
 
@@ -316,7 +338,7 @@ def main():
             return None
 
         # 下载所有股票
-        # stock_list = stock_list[:100]
+        stock_list = stock_list[:100]
         total = len(stock_list)
         print(f"共 {total} 只股票待下载")
 
