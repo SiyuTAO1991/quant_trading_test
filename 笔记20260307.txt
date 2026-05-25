@@ -1,0 +1,491 @@
+npm install （安装依赖包，大约有1000多个）
+npm run build
+
+Test-Path "C:\Program Files\Git\bin\bash.exe"
+
+$env:OPENAI_API_KEY=sk-
+git clone https://github.com/openclaw/openclaw.git
+gitee下载
+https://gitee.com/OpenClaw-CN/openclaw-cn
+
+npm install -g openclaw@latest
+
+针对Mac电脑
+Step1，先安装nodejs
+Step2, 在命令行下面运行
+npm install -g openclaw@latest  （非程序员，直接用这个）
+
+如果你下载了 .zip 解压之后，是源代码
+需要安装
+npm install
+npm run build
+
+安装助手：
+1）用AI编程工具，比如 Claude Code, Cursor, Trae, Lingma
+2）kimi
+
+openclaw --version
+# 应显示：2026.3.3
+
+openclaw onboard --install-daemon
+
+创建飞书应用
+找到 凭证  APP ID 和 App Secrect
+
+openclaw gateway --port 18789
+openclaw dashboard
+
+
+SKILL.md
+--
+第一部分：yaml
+第二部分： md
+
+mac 和windows 相比应该更方便
+可以先用  .csv作为数据源，把 miniqmt 这个skill的 .py 改写下
+
+miniQMT 是提供数据源；
+
+Q：老师为什么不用小龙虾自己写这些py
+建议还是直接用AI编程工具，比如 Cursor, Trae, Lingma来写
+可以 @之前写过的代码，快速构建一个新的skill
+
+小龙虾是可以写代码，但是写代码能力一般，不如Cursor
+=> 写工具 .py的难点在于 debug
+
+
+
+Agent + Skill 利用现有的工具来干活的
+计算 600519.SH 的 MACD 指标
+
+OpenClaw 太灵活
+
+OpenClaw 很火 27万Star => 现象
+很多人安装它 => 也要花不少时间，买 mac mini 
+======
+开始用了，不知道能干什么
+配置了一些skill（量化交易Skill：miniQMT数据采集，talib指标计算，backtrader 回测）
+飞书
+
+=> 让AI来干活，以后直接给它下任务
+
+=====
+不足：
+可能skill匹配有问题，如果你skill数量很多（数量 >= 80个，可能就会选错skill）
+可能它不调用skill，或者调用的不对 => 没有得出正确结果
+
+
+
+量化交易：80%
+系统工程，工作流 => 严肃，可以复用，稳定的系统 ***
+直接运行的脚本，不需要 openclaw agent来规划怎么设计
+
+OpenClaw：灵活性，调研，不在框架里面的（不是预先设置好的任务流）
+占20%
+
+OpenClaw：7*24小时，你有个通信的管道，可以派活给它
+
+
+Q：OpenClaw 能否更稳定的运行？
+如果你要做的是一个稍微复杂的工具 => 大的Skill节点
+（里面写好了 具体的工作流程）
+
+这个SKILL，叫做 股票推荐策略（基于多头排列的）
+
+python skills/backtrader/scripts/run_backtest.py 600519.SH 2025-01-01 2025-12-31 "double_ma"
+
+OpenClaw => 接受我们的需求，理解后，转化为调用现成工具的能力
+7*24
+
+
+Q：不用openclaw不行么？
+这次课程必须得用这个openclaw么？
+openclaw, nano bot, CoPaw, LobsterAI
+kimi claw
+7*24小时，可以理解你的需求，帮你使用量化工具的助手
+
+
+Q：不是必须的吧
+
+OpenClaw 是一个壳
+
+我想做量化回测，从数据采集到指标计算到回测，你能帮我规划下流程吗？
+
+Q：前面没听完整， Linux上能连miniqmt吗，数据从哪来
+miniqmt 主要是windows
+
+Q：老师问一下前复权的数据一但企业分红前复权数据都需要重新计算，这样的话每次分红都需要重新拉取，这个问题您是怎么解决的，我看到咱们课程里拉的是前复权数据
+
+
+Q：前面没听完整， Linux上能连miniqmt吗，数据从哪来
+windows连接QMT
+tushare, akshare
+
+
+Q：wsl 装的miniqmt可以连qmt吗
+QMT软件是跑在windows上的
+
+Q：7*24一般用服务器 不太适合用Windows哇
+
+
+Q：群里两拨人，我是计算机的，感觉不难，但一些金融方面的策略和术语觉得很难
+
+Q：挑战挺大的，需要课下花比较多时间来部署
+不难，但是会遇到坑（比如要 改写 openclaw.json） 环境配置不对的时候，需要调整
+
+Q：部署多了或者自定义多了可能会比较麻烦
+
+1）全局 .env
+在 C:\User\用户名\.openclaw\ 里面
+2）当前运行  Openclaw项目的文件夹，里面的 .env
+
+
+
+Q：老师给的数据采集脚本有前复权逻辑。但是老师为了拉取效率只是增量更新。但是还是要有定期全量取数的逻辑取更新数据。可以让cursor在老师的逻辑上加一下定期全量更新逻辑
+对的
+
+Q：是的，应该分为两拨人，安装过的因为觉得不难，没有安装过可能会觉得难。
+
+
+Q：执行skill的python环境能映射到aconda的路径吗
+可以，
+我不太用 aconda的 Python环境
+
+
+Q：openclaw是要跟QMT装在一台机器上吗？
+如果你要用 miniQMT采集数据的话，需要
+
+Q：把老师的三个skill放到我的龙虾对应目录中，就直接可以用？
+Step1，放skill文件夹
+Step2，配置 openclaw.json
+配置你的Agent，让它具备 这3个Skill能力
+
+
+
+Q：我觉得不要把openclaw和QMT放一起，小心它给你执行交易了
+如果你给它配备了 交易Skill，会有这个安全问题
+
+
+Q：A股上市公司每年至少1次分红（年报分红），部分公司还有中报分红，以「格力电器（000651.SZ）」为例：
+- 每年2次分红（年报+中报）；
+- 存的前复权数据：每年要全量重算2次，或者重新拉取；
+
+
+
+Q：也担心 openclaw 的数据安全
+
+Q：部署skill用skill 和我们直接把skill的内容作为提示词输入给它的区别是什么呢
+提示词写一遍就可以了，因为放到  SKILL.md 形成了文档
+
+
+Q：老师你自己的实盘，用的WINDOWS云主机+miniQMT么？
+对的
+
+Q：这个智能体 只需要json中加配置即可吗
+json + SKILL的设置
+
+
+Q：有除权
+
+
+Q：windows 云主机，适合安装openclaw吗？
+
+
+Q：我感觉复权的话的确前复权可能新出来数据会影响前面数据的值，而且也存在精度问题，backtrader 那种不复权+盘后调整价格的方式来存挺好的
+
+
+Q：openclaw配置qwen大模型，默认显示的是qwen-coder，是要选这个吗？
+可以选择 qwen-coder
+
+
+Q：让龙虾自己加skill
+
+
+Q：如果要通过飞书给openclaw
+
+
+Q：发消息，是不是需要openclaw
+
+
+Q：要能访问外网
+
+
+
+Q：我们前面默认是开启的本地ip
+和端口
+
+
+Q：openclaw.json在哪个文件夹，没找到
+
+Q：mac上按照老师发的命令安装了，剩余的应该是window上的流程类似的吧
+
+
+Q：Token控制有什么注意和建议的吗
+http://127.0.0.1:18789/#token=XXXX
+AI大模型 token， coding plan
+
+
+Q：老师我说的情况是:我今天拉取了全部数据到本地，明天这个企业分红或送转，我需要再拉取一次全量数据才是复权后的数据，否则我数据库里的数据是复权前的数据拉取到的数据是复权后的数据会出现数据不一致，回测不准的情况，是这样吗
+有这个问题，需要数据更新
+
+Q：我理解是这样的，所以最安全还是全量更新
+我看推荐用的是后复权数据，或者不复权用复权因子，所以问问老师是怎么设计的
+方法1：不复权 + 自己处理
+方法2：针对当前发生变化（比如 分红、送转，需要处理的股票，全量更新） **
+
+
+
+Q：便宜不好用不稳定，不如gpt5.4中转站
+
+
+Q：买了阿里百炼的
+
+
+Q：如果我想通过飞书去控制 OpenClaw 的机器人去做一些操作的话，那是不是需要满足两个条件？第一个条件是我电脑上的 OpenClaw 需要是启动，然后第二个条件是我的 OpenClaw 能够访问外网，这就依赖我在刚开始启动的时候，就可能不不能只有一个本地地址，需要开放一个公网地址，是吗？但是如果开放公网地址，会不会有一些安全问题？
+条件1：需要openclaw启动
+条件2：外网穿透
+
+
+Q：get_divid_factors能获取除权除息日，每天查一下，有除权除息的更新就行
+是的，这种方式不错！
+
+Q：不用开公网IP，连飞书是主动建长连接的
+
+Q：老师你那个很牛的wucai网站什么时候可以用？在开盘过程中会有实时获取数据并计算么？比如实时跟踪板块的涨幅。
+
+
+Q：LEVEL-2 数据怎么读取
+
+
+Nat就可以了
+
+
+Q：实时性要求不高的话，能不能直接利用看盘软件下载的盘后数据？这样也不用qmt了。
+可以
+
+
+Q：低波红利ETF，有的是每个月分红。想通过量化做T+0增厚收益可以实现吗
+
+Q：实时的分时数据，怎么获取呢？
+miniqmt 支持分钟的
+
+
+Q：老师您那个框架会提供源码吗
+不是开源
+
+Q：意思是我们给这个wucai客户端配置好我自己的mysql库就可以了么？支持120分钟的k线图么？支持60日均线么？
+用自己的mysql，sqlite
+
+Q：增厚用网格好像就行
+
+Q：老师的这个网页K线图界面是用Echart做的吗？看着和专业券商的一样
+是的
+
+Q：想有个skil，如何判断是趋势交易策略还是震荡交易策略
+
+帮我推荐 针对 贵州茅台的量化交易策略
+
+帮我查看
+ "agents": {
+    "list": [
+      {
+        "id": "quant-analyst",
+        "model": "dashscope/qwen-max-latest",
+        "workspace": "~/.openclaw/workspace",
+        "skills": ["miniqmt-kline", "talib", "backtrader"]
+      }
+    ]
+  }
+}
+
+这个定义在哪个 openclaw.json中，然后我想要增加 strategy-recommend，具体skill已经实现了，放到了 C:\Users\cheny\.openclaw\workspace\skills\strategy-recommend
+
+
+1、我想搭建一个 策略推荐SKLL，用于判断当前的股票，属于哪种交易策略更适合：
+趋势交易策略还是震荡交易策略，比如
+ADX > 25：趋势交易
+15< ADX < 25：灰色地带
+ADX < 15：震荡交易
+===
+我现在在用openclaw，部署的 skills 在 skills文件夹中，已经有3个现成的，你可以参考；
+帮我梳理思路
+
+2、是的，帮我编写，另外帮我放到 openclaw.json 中，应该之前有 agent 部署过 miniqmt-kline, talib, backtrader 等skill，参考下
+
+Cursor, Claude Code, Codex
+Lingma, Trae, Qoder, Codebuddy
+
+Step1，理解技术原理
+Step2，跑通现有代码
+Step3，改写（用AI编程工具） => strategy-recommend
+
+Qwen-Coder-Plus
+
+
+帮我关掉 openclaw 18789，我自己来重启
+
+
+Q：composer 1.5 是不是free套餐就行了
+是的
+
+
+Q：warp 也挺好用，使用命令行安装什么环境比较方便
+
+
+Q：老师这个是什么ide
+Cursor
+npm install -g @wucai/wucai-code
+wucai code
+
+cursor
+
+
+Q：glm-5咋样
+
+经常遇到
+
+
+Q：GPT 5.4发布，貌似有openclaw的能力了
+
+
+Q：给 Lingma 装个 codex 插件
+
+
+Q：老师你现在的主数据源是xtquant吗，tushare计算后的复权数据能用吗，是否数据不准呢
+
+Q：• 环境变量方式（可选）
+也可以在启动网关前设置环境变量：
+$env:OPENAI_API_KEY="sk-你的API_KEY"
+$env:OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
+$env:OPENCLAW_MODEL="openai:qwen-turbo"
+这个放在windows环境变量里吗，还是openclaw里
+
+.env 之前是放到了这里，但是没有起到作用，后面就单独设置了环境变量
+
+
+Q：老师后面还会有股票的更多知识库构建么？比如公司的产品分类及营收占比、供应链关系、投资关系、产品链路上的位置（如电网涉及到燃气轮机、变压器、储能），行业内的地位等。
+有的
+
+
+Q：skill 终于调用成功了，发现需要开启 tools 执行权限，才可以调用 python 命令。
+https://help.aliyun.com/zh/model-studio/openclaw#f5bd07065ejo3
+这是阿里云百炼的安装 openclaw 的教程，大家可以参考一下
+
+Q：用了一会。出现错误 ⚠️ API rate limit reached. Please try again later. 这个是什么
+
+
+Q：期待可以多讲一些 算子、组合相关的知识
+时间序列预测？ XGBoost, LightGBM
+
+
+Q：如果以后的课程有需要提前安装的工具 可以提前发布安装教程让我们先安装一下吗
+
+Q：老师可以删一下apikey后，同步下openclaw.json文件吗
+可以的
+
+Gemini API KEY 欠费46万
+
+Q：蒸馏一个量化模型在本地使用行不行呢？
+int4
+
+
+Q：老师你的专栏：人人都用得上的 AI 量化思维课，缠论那，能补充一些图片么？一图胜千文呀
+
+
+Q：多个大模型的KEY，都要写入环境变量，是吗？
+以后你会用到 API KEY，都从环境变量中获取，那个时候配置下
+
+
+Q：感觉 openclaw 和 claude code 差不多，写好 skill 后，其实是可以做同样的事情，只不过 openclaw 可以有 web 页面和连接飞书对话。老师，量化的 agent 需不需要一个比较专业的 prompt，这样效果是不是会好一点，不管是分析还是执行
+需要的 
+.yaml
+多个角色的prompt
+多个工作流的prompt
+
+
+Q：openclaw这种形式感觉可以再等等它迭代，它目前的价值还是把写好的skill更方便串联起来，短期也可以自己手搓
+是的！
+
+
+Q：刚才走开了，老师的专栏在哪看？
+
+
+Q：后面是不是会有缠论买点点的讲解和代码
+
+Q：老师我一直困惑prompt管理。 你是如何管理、更新的呢？
+独立成一个 .yaml
+不要写在代码
+
+
+
+Q：老师，https://nof1.ai/ ，这种 炒股这种 agent，能简单分享一下实现思路吗。就是 prompt + langchain 调用吗
+Agent：
+1、system prompt：角色扮演，工作定义
+2、Tool：工具调用
+3、RAG：知识库
+LLM，memory
+
+skill.md = Tool + 工具手册
+
+
+Q：老师我一直困惑prompt管理。 你是如何管理、更新的呢？
+.yaml 提示词管理
+
+
+Q：可以尝试用本地部署的开源模型来做这些工作？
+qwen3-8b, qwen3-32B
+
+
+Q：如果通过自我学习的角度看 老师自己的短板是在哪里
+attention，时间有限； => 杠杆 ***
+选股，比较优势 ***
+贵州茅台，虽然能挣钱，但是是最好的么？
+
+
+Q：老师对未来个人Ai团队替代工作有什么看法，目前在互联网大厂感觉周边环境都在考虑以后被ai替代工作的问题
+AI替代的是手，不是下指令的人；
+
+
+Q：就是多个大模型比赛那个网站
+
+
+Q：证券分析知识库
+
+
+金融市场历史知识库
+
+
+老师说得很在理，还是杠杆和权衡
+
+
+资本杠杆、人工杠杆、产品杠杆 / 代码杠杆
+
+
+
+
+Q：纳瓦尔宝典的观点吧
+
+Q：对的
+
+
+Q：好像现在编程类工作反而多了
+
+
+Q：非遗程序员
+
+
+Q：有看到相关市场数据，不知道真的假的
+
+
+Q：就像马车夫变成出租车司机的过程，不愿意开车的才被淘汰了
+
+
+Q：我还是觉得中古程序员有独特优势的
+
+Q：老师，技术大牛的能力被AI抹平了，虽然AI也一定程度上武装了他，但是相对于来说AI对于普通人的武装更大。老师怎么看待这个问题？
+AI是工具，是双手，可以让我们更往上走；
+
+
+纳瓦尔宝典：产品杠杆（对程序员来说是代码）
+
+@以前成功的代码，去写新的需求
