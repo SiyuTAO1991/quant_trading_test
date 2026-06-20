@@ -48,8 +48,14 @@ if sys.platform == 'win32':
 # ============================================================
 # 配置
 # ============================================================
-TEST_MODE = True
+TEST_MODE = False
 TEST_STOCK = '600406.SH'
+
+# 指定采集标的（非空时优先于 TEST_MODE / 全量模式）
+CUSTOM_STOCKS = [
+    '159608.SZ', '159583.SZ', '159560.SZ', '159133.SZ', '159796.SZ',  # ETF
+    '603019.SH', '002847.SZ', '603259.SH', '000981.SZ', '002714.SZ', '002115.SZ',
+]
 
 SECTOR = '沪深A股'
 NUM_WORKERS = 8
@@ -84,6 +90,48 @@ def get_stock_list():
         code = row['ts_code']
         codes.append(code)
     return codes
+
+
+def is_fund_or_etf(ts_code: str) -> bool:
+    """根据代码段判断是否为 ETF/LOF 等基金（非 A 股股票）。
+
+    深市: 159xxx=ETF, 160-169=LOF, 184xxx=基金
+    沪市: 510-518/560-563/588=ETF, 501=封闭式基金
+    """
+    code, _, exchange = ts_code.partition('.')
+    code = code.strip()
+    exchange = exchange.upper()
+
+    if exchange == 'SZ':
+        return (
+            code.startswith('159')
+            or (code.startswith('16') and len(code) == 6)
+            or code.startswith('184')
+        )
+    if exchange == 'SH':
+        return (
+            code.startswith(('510', '511', '512', '513', '515', '516', '517', '518'))
+            or code.startswith(('560', '561', '562', '563', '588'))
+            or code.startswith('501')
+        )
+    return False
+
+
+def fetch_daily_df(ts_code, start_date, end_date):
+    """按标的类型选择 Tushare 日线接口"""
+    if is_fund_or_etf(ts_code):
+        return get_pro().fund_daily(
+            ts_code=ts_code,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    return ts.pro_bar(
+        ts_code=ts_code,
+        start_date=start_date,
+        end_date=end_date,
+        adj='qfq',
+        freq='D',
+    )
 
 
 # ============================================================
@@ -124,14 +172,7 @@ def download_and_save(stock_code, start_date):
     end_date = date.today().strftime('%Y%m%d')
     
     try:
-        # 使用 ts.pro_bar 获取前复权日线数据
-        df = ts.pro_bar(
-            ts_code=stock_code,
-            start_date=start_date,
-            end_date=end_date,
-            adj='qfq',   # 前复权
-            freq='D'      # 日线
-        )
+        df = fetch_daily_df(stock_code, start_date, end_date)
 
         if df is None or len(df) == 0:
             return stock_code, 0
@@ -190,8 +231,10 @@ def main():
     
     print("=" * 60)
     print("行情数据采集 (Tushare Pro -> MySQL)")
-    if TEST_MODE:
-        print("[测试模式] 只采集贵州茅台")
+    if CUSTOM_STOCKS:
+        print(f"[自定义模式] 采集 {len(CUSTOM_STOCKS)} 只标的")
+    elif TEST_MODE:
+        print("[测试模式] 只采集单只股票")
     else:
         print(f"[全量模式] 采集{SECTOR}, {NUM_WORKERS}线程并行")
     print("=" * 60)
@@ -201,7 +244,10 @@ def main():
     print("  初始化成功")
 
     # 获取股票列表
-    if TEST_MODE:
+    if CUSTOM_STOCKS:
+        all_codes = CUSTOM_STOCKS
+        print(f"\n[自定义模式] 采集: {', '.join(all_codes)}")
+    elif TEST_MODE:
         all_codes = [TEST_STOCK]
         print(f"\n[测试模式] 只采集 {TEST_STOCK}")
     else:
